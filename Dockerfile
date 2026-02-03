@@ -27,5 +27,5 @@ RUN mkdir -p exports known_faces instance
 ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
 
-# Railway uses PORT env variable
-CMD gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5000} --timeout 120 --workers 2
+# Railway uses PORT env variable - use shell form for variable expansion
+CMD sh -c "gunicorn wsgi:app --bind 0.0.0.0:\$PORT --timeout 120 --workers 2"
