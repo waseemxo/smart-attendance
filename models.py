@@ -119,10 +119,18 @@ class Settings(db.Model):
     
     @staticmethod
     def set(key, value):
-        setting = Settings.query.filter_by(key=key).first()
-        if setting:
-            setting.value = str(value)
-        else:
-            setting = Settings(key=key, value=str(value))
-            db.session.add(setting)
-        db.session.commit()
+        try:
+            setting = Settings.query.filter_by(key=key).first()
+            if setting:
+                setting.value = str(value)
+            else:
+                setting = Settings(key=key, value=str(value))
+                db.session.add(setting)
+            db.session.commit()
+        except Exception:
+            # Handle race condition - another worker may have inserted
+            db.session.rollback()
+            setting = Settings.query.filter_by(key=key).first()
+            if setting:
+                setting.value = str(value)
+                db.session.commit()
