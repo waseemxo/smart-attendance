@@ -21,10 +21,11 @@ RUN pip install --no-cache-dir -r requirements-prod.txt
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p exports known_faces
+RUN mkdir -p exports known_faces instance
 
-# Expose port
-EXPOSE 5000
+# Set environment variables
+ENV FLASK_APP=app.py
+ENV FLASK_ENV=production
 
-# Run with gunicorn
-CMD ["gunicorn", "wsgi:app", "--bind", "0.0.0.0:5000", "--timeout", "120"]
+# Railway uses PORT env variable
+CMD gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5000} --timeout 120 --workers 2
