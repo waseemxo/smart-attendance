@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - Smart Attendance{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-file-earmark-spreadsheet"></i> Attendance Reports</h1>
+        <p class="text-muted">View and export attendance records</p>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row align-items-end">
+            <div class="col-md-4">
+                <label for="dateFilter" class="form-label">Date</label>
+                <input type="date" class="form-control" id="dateFilter" value="{{ dates[0] if dates else '' }}">
+            </div>
+            <div class="col-md-4">
+                <label for="classFilter" class="form-label">Class (Optional)</label>
+                <select class="form-select" id="classFilter">
+                    <option value="">All Classes</option>
+                    {% for cls in classes %}
+                        <option value="{{ cls }}">{{ cls }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-primary me-2" onclick="loadReport()">
+                    <i class="bi bi-search"></i> Load Report
+                </button>
+                <button class="btn btn-success" onclick="exportReport()">
+                    <i class="bi bi-download"></i> Export Excel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Report Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0" id="reportTitle">Attendance Report</h5>
+        <span class="badge bg-primary" id="recordCount">0 records</span>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="reportTable">
+                <thead>
+                    <tr>
+                        <th>Roll Number</th>
+                        <th>Student Name</th>
+                        <th>Class</th>
+                        <th>Department</th>
+                        <th>Subject</th>
+                        <th>Time Marked</th>
+                        <th>Confidence</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="reportBody">
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">
+                            Select a date and click "Load Report" to view attendance
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Date Selection -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-calendar3"></i> Recent Dates with Attendance</h5>
+    </div>
+    <div class="card-body">
+        {% if dates %}
+            <div class="d-flex flex-wrap gap-2">
+                {% for d in dates[:14] %}
+                    <button class="btn btn-outline-secondary btn-sm" onclick="selectDate('{{ d }}')">
+                        {{ d }}
+                    </button>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted mb-0">No attendance records found</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentData = [];
+    
+    // Select date from quick buttons
+    function selectDate(dateStr) {
+        document.getElementById('dateFilter').value = dateStr;
+        loadReport();
+    }
+    
+    // Load report data
+    async function loadReport() {
+        const date = document.getElementById('dateFilter').value;
+        const classFilter = document.getElementById('classFilter').value;
+        
+        if (!date) {
+            alert('Please select a date');
+            return;
+        }
+        
+        try {
+            const params = new URLSearchParams({
+                date: date,
+                class: classFilter
+            });
+            
+            const response = await fetch(`/reports/data?${params}`);
+            currentData = await response.json();
+            
+            renderTable(currentData);
+            
+            document.getElementById('reportTitle').textContent = 
+                `Attendance Report - ${date}${classFilter ? ` (${classFilter})` : ''}`;
+            document.getElementById('recordCount').textContent = `${currentData.length} records`;
+            
+        } catch (err) {
+            alert('Error loading report: ' + err.message);
+        }
+    }
+    
+    // Render table
+    function renderTable(data) {
+        const tbody = document.getElementById('reportBody');
+        
+        if (data.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        No attendance records found for this date
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = data.map(record => `
+            <tr>
+                <td><strong>${record.roll_number}</strong></td>
+                <td>${record.student_name}</td>
+                <td><span class="badge bg-primary">${record.class_name}</span></td>
+                <td>${record.department}</td>
+                <td>${record.subject}</td>
+                <td>${record.time}</td>
+                <td>
+                    <span class="badge ${getConfidenceBadge(record.confidence)}">${record.confidence}</span>
+                </td>
+                <td>
+                    <span class="badge bg-success">${record.status}</span>
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    // Get badge class based on confidence
+    function getConfidenceBadge(confidence) {
+        const value = parseInt(confidence);
+        if (value >= 80) return 'bg-success';
+        if (value >= 60) return 'bg-warning';
+        return 'bg-danger';
+    }
+    
+    // Export to Excel
+    function exportReport() {
+        const date = document.getElementById('dateFilter').value;
+        const classFilter = document.getElementById('classFilter').value;
+        
+        if (!date) {
+            alert('Please select a date first');
+            return;
+        }
+        
+        const params = new URLSearchParams({
+            date: date,
+            class: classFilter
+        });
+        
+        window.location.href = `/reports/export?${params}`;
+    }
+    
+    // Load report for today on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('dateFilter').value = today;
+    });
+</script>
+{% endblock %}

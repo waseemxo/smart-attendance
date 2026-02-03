@@ -1,0 +1,499 @@
+{% extends "base.html" %}
+
+{% block title %}Live Attendance - Smart Attendance{% endblock %}
+
+{% block extra_css %}
+<style>
+    .camera-container {
+        position: relative;
+        max-width: 100%;
+    }
+    
+    .camera-feed {
+        width: 100%;
+        max-width: 640px;
+        border-radius: 10px;
+        border: 3px solid #dee2e6;
+    }
+    
+    .camera-feed.active {
+        border-color: #198754;
+    }
+    
+    .attendance-log {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    .log-entry {
+        padding: 10px;
+        border-bottom: 1px solid #dee2e6;
+        animation: fadeIn 0.3s ease-in;
+    }
+    
+    .log-entry.success {
+        background-color: #d1e7dd;
+    }
+    
+    .log-entry.warning {
+        background-color: #fff3cd;
+    }
+    
+    .log-entry.danger {
+        background-color: #f8d7da;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .pending-card {
+        border-left: 4px solid #ffc107;
+    }
+    
+    .pending-image {
+        width: 80px;
+        height: 80px;
+        object-fit: cover;
+        border-radius: 8px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <div>
+            <h1><i class="bi bi-camera-video"></i> Live Attendance</h1>
+            <p class="text-muted">Students will be automatically recognized as they walk in</p>
+        </div>
+        <div>
+            <span class="badge bg-{{ 'success' if current_class else 'secondary' }} fs-6">
+                {% if current_class %}
+                    {{ current_class.subject }} ({{ current_class.class_name }})
+                {% else %}
+                    No Active Class
+                {% endif %}
+            </span>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Camera Feed -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-camera"></i> Camera Feed</h5>
+                <div>
+                    <span id="statusIndicator" class="badge bg-secondary">Stopped</span>
+                </div>
+            </div>
+            <div class="card-body text-center">
+                <div class="camera-container">
+                    <video id="video" autoplay playsinline class="camera-feed mb-3"></video>
+                    <canvas id="canvas" style="display: none;"></canvas>
+                </div>
+                
+                <div class="d-flex justify-content-center gap-2">
+                    <button class="btn btn-success btn-lg" id="startBtn">
+                        <i class="bi bi-play-fill"></i> Start Attendance
+                    </button>
+                    <button class="btn btn-danger btn-lg" id="stopBtn" disabled>
+                        <i class="bi bi-stop-fill"></i> Stop
+                    </button>
+                </div>
+                
+                <div id="noClassAlert" class="alert alert-warning mt-3" style="display: none;">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    No class is currently scheduled. Please check the timetable.
+                </div>
+            </div>
+        </div>
+        
+        <!-- Attendance Log -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-list-check"></i> Attendance Log</h5>
+            </div>
+            <div class="card-body attendance-log" id="attendanceLog">
+                <div class="text-center text-muted py-3" id="emptyLog">
+                    <i class="bi bi-inbox fs-1"></i>
+                    <p>Attendance log will appear here</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Side Panel -->
+    <div class="col-md-4">
+        <!-- Stats -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-graph-up"></i> Session Stats</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <h3 id="statRecognized" class="text-success mb-0">0</h3>
+                        <small class="text-muted">Marked</small>
+                    </div>
+                    <div class="col-4">
+                        <h3 id="statPending" class="text-warning mb-0">0</h3>
+                        <small class="text-muted">Pending</small>
+                    </div>
+                    <div class="col-4">
+                        <h3 id="statUnknown" class="text-danger mb-0">0</h3>
+                        <small class="text-muted">Unknown</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Pending Confirmations -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-question-circle"></i> Pending Confirmations</h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="refreshPending()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+            <div class="card-body" id="pendingList">
+                <!-- Pending confirmations will appear here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="bi bi-question-circle"></i> Confirm Identity</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <img id="modalImage" src="" class="img-fluid" style="max-height: 200px; border-radius: 10px;">
+                </div>
+                <p>System detected: <strong id="modalStudentName"></strong></p>
+                <p>Confidence: <span id="modalConfidence" class="badge bg-warning"></span></p>
+                
+                <div class="mb-3">
+                    <label class="form-label">Is this correct?</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="confirmChoice" id="confirmYes" value="yes" checked>
+                        <label class="form-check-label" for="confirmYes">
+                            Yes, this is correct
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="confirmChoice" id="confirmNo" value="no">
+                        <label class="form-check-label" for="confirmNo">
+                            No, this is someone else
+                        </label>
+                    </div>
+                </div>
+                
+                <div id="correctStudentSelect" style="display: none;">
+                    <label class="form-label">Select correct student:</label>
+                    <select class="form-select" id="correctStudent">
+                        <!-- Will be populated -->
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="rejectConfirmation()">
+                    <i class="bi bi-x"></i> Reject
+                </button>
+                <button type="button" class="btn btn-success" onclick="submitConfirmation()">
+                    <i class="bi bi-check"></i> Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const statusIndicator = document.getElementById('statusIndicator');
+    const attendanceLog = document.getElementById('attendanceLog');
+    const emptyLog = document.getElementById('emptyLog');
+    const noClassAlert = document.getElementById('noClassAlert');
+    
+    let stream = null;
+    let isRunning = false;
+    let processInterval = null;
+    let currentPendingId = null;
+    
+    // Stats
+    let stats = { recognized: 0, pending: 0, unknown: 0 };
+    
+    // Start camera and processing
+    async function start() {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    facingMode: 'user'
+                } 
+            });
+            video.srcObject = stream;
+            video.classList.add('active');
+            
+            isRunning = true;
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            statusIndicator.textContent = 'Running';
+            statusIndicator.className = 'badge bg-success';
+            noClassAlert.style.display = 'none';
+            
+            // Process frames every 2 seconds
+            processInterval = setInterval(processFrame, 2000);
+            
+        } catch (err) {
+            alert('Error accessing camera: ' + err.message);
+        }
+    }
+    
+    // Stop processing
+    function stop() {
+        isRunning = false;
+        
+        if (processInterval) {
+            clearInterval(processInterval);
+            processInterval = null;
+        }
+        
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            stream = null;
+        }
+        
+        video.srcObject = null;
+        video.classList.remove('active');
+        
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        statusIndicator.textContent = 'Stopped';
+        statusIndicator.className = 'badge bg-secondary';
+    }
+    
+    // Process a frame
+    async function processFrame() {
+        if (!isRunning) return;
+        
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+        
+        const imageData = canvas.toDataURL('image/jpeg', 0.8);
+        
+        try {
+            const response = await fetch('/attendance/process', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: imageData })
+            });
+            
+            const result = await response.json();
+            
+            if (result.no_class) {
+                noClassAlert.style.display = 'block';
+                return;
+            }
+            
+            if (result.success && result.message) {
+                addLogEntry(result);
+            }
+            
+        } catch (err) {
+            console.error('Processing error:', err);
+        }
+    }
+    
+    // Add entry to log
+    function addLogEntry(result) {
+        emptyLog.style.display = 'none';
+        
+        let entryClass = '';
+        if (result.marked) {
+            entryClass = 'success';
+            stats.recognized++;
+        } else if (result.pending) {
+            entryClass = 'warning';
+            stats.pending++;
+            refreshPending();
+        } else if (result.match_type === 'unknown') {
+            entryClass = 'danger';
+            stats.unknown++;
+        }
+        
+        const entry = document.createElement('div');
+        entry.className = `log-entry ${entryClass}`;
+        
+        const time = new Date().toLocaleTimeString();
+        entry.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>${result.message}</strong>
+                    ${result.student ? `<br><small class="text-muted">${result.student.roll_number} - ${result.student.class_name}</small>` : ''}
+                </div>
+                <small class="text-muted">${time}</small>
+            </div>
+        `;
+        
+        attendanceLog.insertBefore(entry, attendanceLog.firstChild);
+        updateStats();
+    }
+    
+    // Update stats display
+    function updateStats() {
+        document.getElementById('statRecognized').textContent = stats.recognized;
+        document.getElementById('statPending').textContent = stats.pending;
+        document.getElementById('statUnknown').textContent = stats.unknown;
+    }
+    
+    // Refresh pending confirmations
+    async function refreshPending() {
+        try {
+            const response = await fetch('/attendance/pending');
+            const pending = await response.json();
+            
+            const container = document.getElementById('pendingList');
+            
+            if (pending.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center">No pending confirmations</p>';
+                return;
+            }
+            
+            container.innerHTML = pending.map(p => `
+                <div class="card pending-card mb-2">
+                    <div class="card-body p-2">
+                        <div class="d-flex align-items-center">
+                            <img src="${p.image}" class="pending-image me-2">
+                            <div class="flex-grow-1">
+                                <strong>${p.student_name}</strong><br>
+                                <small class="text-muted">${p.student_roll}</small><br>
+                                <span class="badge bg-warning">${(p.confidence * 100).toFixed(0)}%</span>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-success" onclick="quickConfirm(${p.id}, true)">
+                                    <i class="bi bi-check"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="quickConfirm(${p.id}, false)">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+        } catch (err) {
+            console.error('Error refreshing pending:', err);
+        }
+    }
+    
+    // Quick confirm/reject
+    async function quickConfirm(id, confirmed) {
+        try {
+            await fetch(`/attendance/confirm/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ confirmed })
+            });
+            
+            if (confirmed) {
+                stats.recognized++;
+                stats.pending--;
+            } else {
+                stats.pending--;
+            }
+            updateStats();
+            refreshPending();
+            
+        } catch (err) {
+            console.error('Error confirming:', err);
+        }
+    }
+    
+    // Radio button toggle
+    document.querySelectorAll('input[name="confirmChoice"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            document.getElementById('correctStudentSelect').style.display = 
+                this.value === 'no' ? 'block' : 'none';
+        });
+    });
+    
+    // Load students for dropdown
+    async function loadStudents() {
+        try {
+            const response = await fetch('/api/students');
+            const students = await response.json();
+            
+            const select = document.getElementById('correctStudent');
+            select.innerHTML = students.map(s => 
+                `<option value="${s.id}">${s.name} (${s.roll_number})</option>`
+            ).join('');
+            
+        } catch (err) {
+            console.error('Error loading students:', err);
+        }
+    }
+    
+    // Submit confirmation from modal
+    async function submitConfirmation() {
+        const isCorrect = document.getElementById('confirmYes').checked;
+        const correctStudentId = isCorrect ? null : document.getElementById('correctStudent').value;
+        
+        try {
+            await fetch(`/attendance/confirm/${currentPendingId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    confirmed: true,
+                    correct_student_id: correctStudentId
+                })
+            });
+            
+            stats.recognized++;
+            stats.pending--;
+            updateStats();
+            refreshPending();
+            
+            bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
+            
+        } catch (err) {
+            console.error('Error submitting confirmation:', err);
+        }
+    }
+    
+    // Reject confirmation
+    async function rejectConfirmation() {
+        if (currentPendingId) {
+            await quickConfirm(currentPendingId, false);
+        }
+    }
+    
+    // Event listeners
+    startBtn.addEventListener('click', start);
+    stopBtn.addEventListener('click', stop);
+    
+    // Load initial data
+    loadStudents();
+    refreshPending();
+    
+    // Cleanup
+    window.addEventListener('beforeunload', stop);
+</script>
+{% endblock %}

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Students - Smart Attendance{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <div>
+            <h1><i class="bi bi-people"></i> Students</h1>
+            <p class="text-muted">Manage registered students</p>
+        </div>
+        <a href="/students/register" class="btn btn-primary">
+            <i class="bi bi-person-plus"></i> Register New Student
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h5 class="mb-0">All Students ({{ students|length }})</h5>
+            </div>
+            <div class="col-md-6">
+                <input type="text" id="searchInput" class="form-control" placeholder="Search students...">
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if students %}
+            <div class="table-responsive">
+                <table class="table table-hover" id="studentsTable">
+                    <thead>
+                        <tr>
+                            <th>Roll Number</th>
+                            <th>Name</th>
+                            <th>Class</th>
+                            <th>Department</th>
+                            <th>Face Encodings</th>
+                            <th>Registered</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in students %}
+                        <tr>
+                            <td><strong>{{ student.roll_number }}</strong></td>
+                            <td>{{ student.name }}</td>
+                            <td><span class="badge bg-primary">{{ student.class_name }}</span></td>
+                            <td>{{ student.department }}</td>
+                            <td>
+                                <span class="badge bg-info">{{ student.face_encodings|length }} faces</span>
+                            </td>
+                            <td>{{ student.created_at.strftime('%Y-%m-%d') }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteStudent({{ student.id }}, '{{ student.name }}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-people fs-1 text-muted"></i>
+                <p class="mt-3 text-muted">No students registered yet</p>
+                <a href="/students/register" class="btn btn-primary">
+                    <i class="bi bi-person-plus"></i> Register First Student
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="deleteStudentName"></strong>?</p>
+                <p class="text-danger">This will also delete all attendance records for this student.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Search functionality
+    document.getElementById('searchInput').addEventListener('keyup', function() {
+        const filter = this.value.toLowerCase();
+        const rows = document.querySelectorAll('#studentsTable tbody tr');
+        
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(filter) ? '' : 'none';
+        });
+    });
+    
+    // Delete student
+    let studentToDelete = null;
+    
+    function deleteStudent(id, name) {
+        studentToDelete = id;
+        document.getElementById('deleteStudentName').textContent = name;
+        new bootstrap.Modal(document.getElementById('deleteModal')).show();
+    }
+    
+    document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+        if (studentToDelete) {
+            fetch(`/students/${studentToDelete}/delete`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

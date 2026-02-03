@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Smart Attendance{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-gear"></i> Settings</h1>
+        <p class="text-muted">Configure face recognition and system settings</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <!-- Recognition Settings -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-sliders"></i> Face Recognition Settings</h5>
+            </div>
+            <div class="card-body">
+                <form id="settingsForm">
+                    <div class="mb-4">
+                        <label class="form-label">
+                            <strong>Low Confidence Threshold</strong>
+                            <span class="badge bg-info ms-2" id="lowThresholdValue">{{ "%.0f"|format(settings.low_confidence_threshold * 100) }}%</span>
+                        </label>
+                        <input type="range" class="form-range" id="lowThreshold" 
+                               min="0.3" max="0.7" step="0.05" 
+                               value="{{ settings.low_confidence_threshold }}">
+                        <small class="text-muted">
+                            Faces with similarity below this threshold will require manual confirmation.
+                            Lower value = stricter matching (fewer auto-marks, more confirmations).
+                        </small>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label">
+                            <strong>High Confidence Threshold</strong>
+                            <span class="badge bg-success ms-2" id="highThresholdValue">{{ "%.0f"|format(settings.high_confidence_threshold * 100) }}%</span>
+                        </label>
+                        <input type="range" class="form-range" id="highThreshold" 
+                               min="0.4" max="0.8" step="0.05" 
+                               value="{{ settings.high_confidence_threshold }}">
+                        <small class="text-muted">
+                            Faces with similarity above this threshold are rejected as unknown.
+                            Higher value = more lenient (accepts lower quality matches).
+                        </small>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="mb-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="adaptiveLearning" 
+                                   {{ 'checked' if settings.adaptive_learning else '' }}>
+                            <label class="form-check-label" for="adaptiveLearning">
+                                <strong>Adaptive Learning</strong>
+                            </label>
+                        </div>
+                        <small class="text-muted d-block mt-1">
+                            When enabled, the system will save new face images during attendance to improve recognition over time.
+                            This helps recognize students under different lighting conditions and angles.
+                        </small>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label">
+                            <strong>Maximum Face Encodings per Student</strong>
+                        </label>
+                        <input type="number" class="form-control" id="maxEncodings" 
+                               min="5" max="50" value="{{ settings.max_encodings_per_student }}" style="max-width: 150px;">
+                        <small class="text-muted">
+                            Maximum number of face encodings to store per student for adaptive learning.
+                            Higher values improve accuracy but use more storage.
+                        </small>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg"></i> Save Settings
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="resetDefaults()">
+                            <i class="bi bi-arrow-counterclockwise"></i> Reset to Defaults
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <!-- Info Card -->
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> How It Works</h5>
+            </div>
+            <div class="card-body">
+                <h6>Recognition Zones:</h6>
+                <div class="mb-3">
+                    <span class="badge bg-success">High Confidence</span>
+                    <p class="small mb-2">Automatic attendance marking. Face is clearly recognized.</p>
+                    
+                    <span class="badge bg-warning">Low Confidence</span>
+                    <p class="small mb-2">Requires manual confirmation. System is unsure about the match.</p>
+                    
+                    <span class="badge bg-danger">Unknown</span>
+                    <p class="small mb-0">Face not recognized. Either not registered or very poor match.</p>
+                </div>
+                
+                <hr>
+                
+                <h6>Adaptive Learning:</h6>
+                <p class="small mb-0">
+                    When a face is confirmed (auto or manual), the current face image is saved to improve future recognition.
+                    This helps the system learn variations in appearance due to lighting, angles, glasses, etc.
+                </p>
+            </div>
+        </div>
+        
+        <!-- Threshold Visualization -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Threshold Visualization</h5>
+            </div>
+            <div class="card-body">
+                <div class="threshold-bar mb-3">
+                    <div class="d-flex" style="height: 30px;">
+                        <div id="unknownZone" class="bg-danger" style="flex: 1;"></div>
+                        <div id="lowZone" class="bg-warning" style="flex: 1;"></div>
+                        <div id="highZone" class="bg-success" style="flex: 1;"></div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-1">
+                        <small>0%</small>
+                        <small id="lowMarker">50%</small>
+                        <small id="highMarker">60%</small>
+                        <small>100%</small>
+                    </div>
+                </div>
+                <small class="text-muted">
+                    Red = Unknown | Yellow = Needs Confirmation | Green = Auto-mark
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const lowThreshold = document.getElementById('lowThreshold');
+    const highThreshold = document.getElementById('highThreshold');
+    const lowThresholdValue = document.getElementById('lowThresholdValue');
+    const highThresholdValue = document.getElementById('highThresholdValue');
+    
+    // Update display values
+    function updateDisplay() {
+        const lowVal = parseFloat(lowThreshold.value);
+        const highVal = parseFloat(highThreshold.value);
+        
+        // Convert distance to similarity percentage (inverted)
+        lowThresholdValue.textContent = Math.round((1 - lowVal) * 100) + '%';
+        highThresholdValue.textContent = Math.round((1 - highVal) * 100) + '%';
+        
+        // Update visualization
+        updateVisualization(lowVal, highVal);
+    }
+    
+    function updateVisualization(low, high) {
+        // These are distance thresholds, so lower = stricter
+        const lowPercent = low * 100;
+        const highPercent = high * 100;
+        
+        document.getElementById('unknownZone').style.flex = (100 - highPercent);
+        document.getElementById('lowZone').style.flex = (highPercent - lowPercent);
+        document.getElementById('highZone').style.flex = lowPercent;
+        
+        document.getElementById('lowMarker').textContent = Math.round((1 - low) * 100) + '%';
+        document.getElementById('highMarker').textContent = Math.round((1 - high) * 100) + '%';
+    }
+    
+    lowThreshold.addEventListener('input', function() {
+        // Ensure low threshold doesn't exceed high
+        if (parseFloat(this.value) > parseFloat(highThreshold.value)) {
+            this.value = highThreshold.value;
+        }
+        updateDisplay();
+    });
+    
+    highThreshold.addEventListener('input', function() {
+        // Ensure high threshold doesn't go below low
+        if (parseFloat(this.value) < parseFloat(lowThreshold.value)) {
+            this.value = lowThreshold.value;
+        }
+        updateDisplay();
+    });
+    
+    // Initial display
+    updateDisplay();
+    
+    // Save settings
+    document.getElementById('settingsForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const data = {
+            low_confidence_threshold: parseFloat(lowThreshold.value),
+            high_confidence_threshold: parseFloat(highThreshold.value),
+            adaptive_learning: document.getElementById('adaptiveLearning').checked,
+            max_encodings_per_student: parseInt(document.getElementById('maxEncodings').value)
+        };
+        
+        try {
+            const response = await fetch('/settings/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                alert('Settings saved successfully!');
+            }
+        } catch (err) {
+            alert('Error saving settings: ' + err.message);
+        }
+    });
+    
+    // Reset to defaults
+    function resetDefaults() {
+        lowThreshold.value = 0.5;
+        highThreshold.value = 0.6;
+        document.getElementById('adaptiveLearning').checked = true;
+        document.getElementById('maxEncodings').value = 10;
+        updateDisplay();
+    }
+</script>
+{% endblock %}

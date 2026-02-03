@@ -1,0 +1,238 @@
+/* Smart Attendance System Styles */
+
+/* General */
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+}
+
+/* Navbar */
+.navbar-brand {
+    font-weight: bold;
+}
+
+/* Cards */
+.card {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border: none;
+    border-radius: 10px;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 10px 10px 0 0 !important;
+}
+
+/* Camera Feed */
+.camera-container {
+    background-color: #000;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.camera-feed {
+    width: 100%;
+    max-width: 640px;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+/* Dashboard Stats Cards */
+.card.bg-primary,
+.card.bg-success,
+.card.bg-warning,
+.card.bg-info,
+.card.bg-danger {
+    border-radius: 10px;
+}
+
+.card.bg-primary .bi,
+.card.bg-success .bi,
+.card.bg-warning .bi,
+.card.bg-info .bi,
+.card.bg-danger .bi {
+    opacity: 0.7;
+}
+
+/* Tables */
+.table {
+    margin-bottom: 0;
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+    color: #495057;
+}
+
+/* Badges */
+.badge {
+    font-weight: 500;
+}
+
+/* Buttons */
+.btn {
+    border-radius: 6px;
+}
+
+.btn-lg {
+    padding: 12px 24px;
+}
+
+/* Form Controls */
+.form-control,
+.form-select {
+    border-radius: 6px;
+}
+
+.form-control:focus,
+.form-select:focus {
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+}
+
+/* Attendance Log */
+.attendance-log {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.log-entry {
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    animation: slideIn 0.3s ease-out;
+}
+
+.log-entry.success {
+    background-color: #d1e7dd;
+    border-left: 4px solid #198754;
+}
+
+.log-entry.warning {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.log-entry.danger {
+    background-color: #f8d7da;
+    border-left: 4px solid #dc3545;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Pending Confirmations */
+.pending-card {
+    border-left: 4px solid #ffc107;
+    transition: transform 0.2s;
+}
+
+.pending-card:hover {
+    transform: translateX(5px);
+}
+
+.pending-image {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+/* Captured Images Preview */
+.captured-image {
+    border: 2px solid #dee2e6;
+    transition: transform 0.2s;
+}
+
+.captured-image:hover {
+    transform: scale(1.1);
+}
+
+/* Timetable */
+.timetable-entry {
+    padding: 5px;
+    border-radius: 4px;
+}
+
+/* Settings Threshold Bar */
+.threshold-bar {
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .camera-feed {
+        max-width: 100%;
+    }
+    
+    .card-body {
+        padding: 15px;
+    }
+    
+    .btn-lg {
+        padding: 10px 20px;
+        font-size: 14px;
+    }
+}
+
+/* Custom scrollbar */
+.attendance-log::-webkit-scrollbar {
+    width: 8px;
+}
+
+.attendance-log::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.attendance-log::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.attendance-log::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
+}
+
+/* Loading spinner */
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* Alert animations */
+.alert {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Footer */
+.footer {
+    margin-top: auto;
+}

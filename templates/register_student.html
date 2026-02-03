@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}Register Student - Smart Attendance{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="bi bi-person-plus"></i> Register New Student</h1>
+        <p class="text-muted">Capture multiple face images for better recognition</p>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Form -->
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-person-badge"></i> Student Information</h5>
+            </div>
+            <div class="card-body">
+                <form id="registerForm">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Full Name *</label>
+                        <input type="text" class="form-control" id="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="roll_number" class="form-label">Roll Number *</label>
+                        <input type="text" class="form-control" id="roll_number" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="class_name" class="form-label">Class *</label>
+                        <input type="text" class="form-control" id="class_name" placeholder="e.g., CSE-A" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="department" class="form-label">Department *</label>
+                        <input type="text" class="form-control" id="department" placeholder="e.g., Computer Science" required>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Tip:</strong> Capture at least 3-5 images from different angles for better recognition accuracy.
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn" disabled>
+                            <i class="bi bi-check-lg"></i> Register Student
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Camera -->
+    <div class="col-md-7">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-camera"></i> Face Capture</h5>
+            </div>
+            <div class="card-body">
+                <div class="camera-container text-center">
+                    <video id="video" autoplay playsinline class="camera-feed mb-3"></video>
+                    <canvas id="canvas" style="display: none;"></canvas>
+                </div>
+                
+                <div class="d-flex justify-content-center gap-2 mb-3">
+                    <button type="button" class="btn btn-success" id="captureBtn" disabled>
+                        <i class="bi bi-camera"></i> Capture Face
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="startCameraBtn">
+                        <i class="bi bi-play"></i> Start Camera
+                    </button>
+                </div>
+                
+                <div class="captured-images mt-4">
+                    <h6>Captured Images (<span id="imageCount">0</span>/5 minimum)</h6>
+                    <div id="imagePreview" class="d-flex flex-wrap gap-2">
+                        <!-- Captured images will appear here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-check-circle"></i> Success</h5>
+            </div>
+            <div class="modal-body">
+                <p id="successMessage">Student registered successfully!</p>
+            </div>
+            <div class="modal-footer">
+                <a href="/students" class="btn btn-primary">View All Students</a>
+                <button type="button" class="btn btn-success" onclick="location.reload()">Register Another</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const captureBtn = document.getElementById('captureBtn');
+    const startCameraBtn = document.getElementById('startCameraBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    const imagePreview = document.getElementById('imagePreview');
+    const imageCountSpan = document.getElementById('imageCount');
+    
+    let stream = null;
+    let capturedImages = [];
+    
+    // Start camera
+    async function startCamera() {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    facingMode: 'user'
+                } 
+            });
+            video.srcObject = stream;
+            captureBtn.disabled = false;
+            startCameraBtn.disabled = true;
+            startCameraBtn.innerHTML = '<i class="bi bi-check"></i> Camera Active';
+        } catch (err) {
+            alert('Error accessing camera: ' + err.message);
+        }
+    }
+    
+    startCameraBtn.addEventListener('click', startCamera);
+    
+    // Capture image
+    captureBtn.addEventListener('click', function() {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+        
+        const imageData = canvas.toDataURL('image/jpeg', 0.8);
+        capturedImages.push(imageData);
+        
+        // Add preview
+        const imgContainer = document.createElement('div');
+        imgContainer.className = 'position-relative';
+        imgContainer.innerHTML = `
+            <img src="${imageData}" class="captured-image" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px;">
+            <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0" 
+                    onclick="removeImage(${capturedImages.length - 1})" style="padding: 0 5px;">
+                <i class="bi bi-x"></i>
+            </button>
+        `;
+        imagePreview.appendChild(imgContainer);
+        
+        updateImageCount();
+    });
+    
+    // Remove captured image
+    window.removeImage = function(index) {
+        capturedImages.splice(index, 1);
+        refreshPreview();
+        updateImageCount();
+    };
+    
+    function refreshPreview() {
+        imagePreview.innerHTML = '';
+        capturedImages.forEach((img, index) => {
+            const imgContainer = document.createElement('div');
+            imgContainer.className = 'position-relative';
+            imgContainer.innerHTML = `
+                <img src="${img}" class="captured-image" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px;">
+                <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0" 
+                        onclick="removeImage(${index})" style="padding: 0 5px;">
+                    <i class="bi bi-x"></i>
+                </button>
+            `;
+            imagePreview.appendChild(imgContainer);
+        });
+    }
+    
+    function updateImageCount() {
+        imageCountSpan.textContent = capturedImages.length;
+        submitBtn.disabled = capturedImages.length < 1; // At least 1 image required
+    }
+    
+    // Submit form
+    document.getElementById('registerForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        if (capturedImages.length < 1) {
+            alert('Please capture at least one face image');
+            return;
+        }
+        
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...';
+        
+        const data = {
+            name: document.getElementById('name').value,
+            roll_number: document.getElementById('roll_number').value,
+            class_name: document.getElementById('class_name').value,
+            department: document.getElementById('department').value,
+            images: capturedImages
+        };
+        
+        try {
+            const response = await fetch('/students/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                document.getElementById('successMessage').textContent = result.message;
+                new bootstrap.Modal(document.getElementById('successModal')).show();
+            } else {
+                alert('Error: ' + result.error);
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+        
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="bi bi-check-lg"></i> Register Student';
+    });
+    
+    // Cleanup on page leave
+    window.addEventListener('beforeunload', function() {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+    });
+</script>
+{% endblock %}
