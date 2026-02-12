@@ -6,12 +6,24 @@ from face_utils import (
     cleanup_old_encodings, get_confidence_thresholds
 )
 from datetime import datetime, date, time, timedelta
+from zoneinfo import ZoneInfo
 import cv2
 import numpy as np
 import pandas as pd
 import json
 import os
 import base64
+
+# Timezone configuration - set your local timezone
+LOCAL_TIMEZONE = ZoneInfo(os.environ.get('TIMEZONE', 'Asia/Kolkata'))
+
+def local_now():
+    """Get current datetime in local timezone"""
+    return datetime.now(LOCAL_TIMEZONE)
+
+def local_today():
+    """Get current date in local timezone"""
+    return datetime.now(LOCAL_TIMEZONE).date()
 
 app = Flask(__name__)
 
@@ -78,7 +90,8 @@ def refresh_known_faces():
 
 def get_current_class():
     """Get the current class based on timetable"""
-    now = datetime.now()
+    # Use local timezone for correct time matching
+    now = datetime.now(LOCAL_TIMEZONE)
     current_time = now.time()
     current_day = now.weekday()
     
@@ -110,7 +123,7 @@ with app.app_context():
 @app.route('/')
 def dashboard():
     """Main dashboard"""
-    today = date.today()
+    today = local_today()
     
     # Stats
     total_students = Student.query.count()
@@ -298,7 +311,7 @@ def process_attendance():
     # Check if already marked today for this subject
     existing = Attendance.query.filter_by(
         student_id=student_id,
-        date=date.today(),
+        date=local_today(),
         subject=current_class.subject
     ).first()
     
@@ -311,8 +324,8 @@ def process_attendance():
         # High confidence - mark attendance directly
         attendance_record = Attendance(
             student_id=student_id,
-            date=date.today(),
-            time_marked=now.time(),
+            date=local_today(),
+            time_marked=local_now().time(),
             subject=current_class.subject,
             confidence=confidence,
             confirmed=True
@@ -365,7 +378,7 @@ def confirm_attendance(id):
         # Check if already marked
         existing = Attendance.query.filter_by(
             student_id=student_id,
-            date=date.today(),
+            date=local_today(),
             subject=pending.subject
         ).first()
         
@@ -373,8 +386,8 @@ def confirm_attendance(id):
             # Mark attendance
             attendance_record = Attendance(
                 student_id=student_id,
-                date=date.today(),
-                time_marked=datetime.now().time(),
+                date=local_today(),
+                time_marked=local_now().time(),
                 subject=pending.subject,
                 confidence=pending.confidence,
                 confirmed=True
@@ -433,7 +446,7 @@ def reports():
 @app.route('/reports/data')
 def get_report_data():
     """Get attendance data for reporting"""
-    report_date = request.args.get('date', date.today().isoformat())
+    report_date = request.args.get('date', local_today().isoformat())
     class_name = request.args.get('class', '')
     
     if isinstance(report_date, str):
@@ -466,7 +479,7 @@ def get_report_data():
 @app.route('/reports/export')
 def export_report():
     """Export attendance to Excel"""
-    report_date = request.args.get('date', date.today().isoformat())
+    report_date = request.args.get('date', local_today().isoformat())
     class_name = request.args.get('class', '')
     
     if isinstance(report_date, str):
