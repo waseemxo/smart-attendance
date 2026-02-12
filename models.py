@@ -1,8 +1,70 @@
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date
 import json
 
 db = SQLAlchemy()
+
+
+# Association table for staff and their assigned classes
+staff_classes = db.Table('staff_classes',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
+    db.Column('class_name', db.String(50), primary_key=True)
+)
+
+
+class User(UserMixin, db.Model):
+    """User model for authentication"""
+    __tablename__ = 'users'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    role = db.Column(db.String(20), default='staff')  # 'admin' or 'staff'
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Many-to-many relationship with classes
+    assigned_classes = db.relationship('AssignedClass', backref='user', lazy=True, cascade='all, delete-orphan')
+    
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+    
+    def get_class_names(self):
+        """Get list of class names assigned to this user"""
+        return [ac.class_name for ac in self.assigned_classes]
+    
+    def can_access_class(self, class_name):
+        """Check if user can access a specific class"""
+        if self.role == 'admin':
+            return True
+        return class_name in self.get_class_names()
+    
+    def __repr__(self):
+        return f'<User {self.username}>'
+
+
+class AssignedClass(db.Model):
+    """Classes assigned to each staff member"""
+    __tablename__ = 'assigned_classes'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    class_name = db.Column(db.String(50), nullable=False)
+    
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'class_name', name='unique_user_class'),
+    )
+    
+    def __repr__(self):
+        return f'<AssignedClass User {self.user_id} - {self.class_name}>'
+
 
 class Student(db.Model):
     __tablename__ = 'students'

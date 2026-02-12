@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+
+{% block title %}Profile - Smart Attendance{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-person-circle"></i> Profile Information</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <th style="width: 150px;">Name:</th>
+                        <td>{{ current_user.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Username:</th>
+                        <td>{{ current_user.username }}</td>
+                    </tr>
+                    <tr>
+                        <th>Email:</th>
+                        <td>{{ current_user.email }}</td>
+                    </tr>
+                    <tr>
+                        <th>Role:</th>
+                        <td>
+                            {% if current_user.role == 'admin' %}
+                                <span class="badge bg-danger">Administrator</span>
+                            {% else %}
+                                <span class="badge bg-primary">Staff</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Assigned Classes:</th>
+                        <td>
+                            {% if current_user.role == 'admin' %}
+                                <span class="text-muted">All classes (Admin)</span>
+                            {% else %}
+                                {% set classes = current_user.get_class_names() %}
+                                {% if classes %}
+                                    {% for class_name in classes %}
+                                        <span class="badge bg-secondary me-1">{{ class_name }}</span>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="text-muted">No classes assigned</span>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Member Since:</th>
+                        <td>{{ current_user.created_at.strftime('%B %d, %Y') }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-key"></i> Change Password</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('profile') }}">
+                    <div class="mb-3">
+                        <label for="current_password" class="form-label">Current Password</label>
+                        <input type="password" class="form-control" id="current_password" 
+                               name="current_password" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">New Password</label>
+                        <input type="password" class="form-control" id="new_password" 
+                               name="new_password" required minlength="6">
+                        <div class="form-text">Minimum 6 characters</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Confirm New Password</label>
+                        <input type="password" class="form-control" id="confirm_password" 
+                               name="confirm_password" required>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Update Password
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
