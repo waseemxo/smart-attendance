@@ -71,6 +71,73 @@ def encode_face_from_base64(base64_string):
     return encoding, image
 
 
+def detect_all_faces(base64_string, known_encodings_dict):
+    """
+    Detect all faces in an image and try to recognize each one.
+    
+    Args:
+        base64_string: Base64 encoded image string
+        known_encodings_dict: dict mapping student_id to list of encodings
+    
+    Returns:
+        list of dicts with: {location, student_id, student_name, confidence, match_type}
+    """
+    # Remove data URL prefix if present
+    if ',' in base64_string:
+        base64_string = base64_string.split(',')[1]
+    
+    # Decode base64 to image
+    img_data = base64.b64decode(base64_string)
+    nparr = np.frombuffer(img_data, np.uint8)
+    image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    
+    if image is None:
+        return [], None
+    
+    # Convert BGR to RGB
+    rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    
+    # Find all face locations
+    face_locations = face_recognition.face_locations(rgb_image, model='hog')
+    
+    if not face_locations:
+        return [], image
+    
+    # Get encodings for all faces
+    face_encodings = face_recognition.face_encodings(rgb_image, face_locations)
+    
+    results = []
+    
+    for i, (encoding, location) in enumerate(zip(face_encodings, face_locations)):
+        # location is (top, right, bottom, left)
+        top, right, bottom, left = location
+        
+        # Recognize this face
+        student_id, confidence, match_type = recognize_face(encoding, known_encodings_dict)
+        
+        student_name = None
+        if student_id:
+            student = Student.query.get(student_id)
+            if student:
+                student_name = student.name
+        
+        results.append({
+            'location': {
+                'top': top,
+                'right': right,
+                'bottom': bottom,
+                'left': left
+            },
+            'student_id': student_id,
+            'student_name': student_name,
+            'confidence': confidence,
+            'match_type': match_type,
+            'encoding': encoding  # For further processing
+        })
+    
+    return results, image
+
+
 def recognize_face(face_encoding, known_encodings_dict):
     """
     Compare a face encoding against known encodings.

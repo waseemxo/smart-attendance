@@ -4,7 +4,7 @@ from models import db, Student, FaceEncoding, Timetable, Attendance, PendingConf
 from face_utils import (
     encode_face_from_base64, recognize_face, load_known_faces, 
     add_face_encoding, image_to_base64, draw_face_box, 
-    cleanup_old_encodings, get_confidence_thresholds
+    cleanup_old_encodings, get_confidence_thresholds, detect_all_faces
 )
 from functools import wraps
 from datetime import datetime, date, time, timedelta
@@ -548,6 +548,53 @@ def process_attendance():
         result['pending_id'] = pending.id
     
     return jsonify(result)
+
+
+@app.route('/attendance/detect', methods=['POST'])
+@login_required
+def detect_faces():
+    """Detect faces in image and return locations with names for live preview"""
+    data = request.get_json()
+    image_data = data.get('image')
+    
+    if not image_data:
+        return jsonify({'success': False, 'faces': []})
+    
+    # Get current class for context
+    current_class = get_current_class()
+    
+    # Detect and recognize all faces
+    known_faces = get_known_faces()
+    faces, _ = detect_all_faces(image_data, known_faces)
+    
+    # Format results for frontend
+    face_results = []
+    for face in faces:
+        face_data = {
+            'location': face['location'],
+            'match_type': face['match_type'],
+            'confidence': round(face['confidence'] * 100),
+            'name': face['student_name'] or 'Unknown',
+            'student_id': face['student_id']
+        }
+        
+        # Add class info if recognized
+        if face['student_id']:
+            student = Student.query.get(face['student_id'])
+            if student:
+                face_data['roll_number'] = student.roll_number
+                face_data['class_name'] = student.class_name
+                # Check if student is in current class
+                if current_class and student.class_name != current_class.class_name:
+                    face_data['wrong_class'] = True
+        
+        face_results.append(face_data)
+    
+    return jsonify({
+        'success': True,
+        'faces': face_results,
+        'current_class': current_class.class_name if current_class else None
+    })
 
 
 @app.route('/attendance/confirm/<int:id>', methods=['POST'])
